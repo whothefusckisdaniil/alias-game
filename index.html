@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alias Game Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white overflow-hidden">
+
+    <header class="fixed top-0 left-0 p-4 z-50">
+        <a href="/#" id="home-logo-btn" class="bg-gray-800 text-white font-bold py-2 px-4 rounded-lg transition hover:bg-indigo-600">
+            Alias Game
+        </a>
+    </header>
+
+    <div id="app" class="min-h-screen flex flex-col items-center justify-center p-4 transition-opacity duration-500 relative">
+        
+        <!-- === ЭКРАН СОЗДАНИЯ КОМНАТЫ === -->
+        <div id="home-screen" class="w-full max-w-md hidden">
+            <div id="initial-choice">
+                <h1 class="text-4xl font-black text-center text-white mb-8">Alias Online</h1>
+                <div class="space-y-4">
+                    <button id="show-create-form-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow text-xl">
+                        Создать игру
+                    </button>
+                    <button id="show-join-form-btn" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg transition transform hover:scale-105 text-xl">
+                        Присоединиться
+                    </button>
+                </div>
+            </div>
+            
+            <div id="create-form-container" class="hidden w-full">
+                 <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl space-y-6">
+                    <h2 class="text-3xl font-bold text-center text-white">Настройки игры</h2>
+                    <form id="create-room-form" class="space-y-6">
+                        <div>
+                            <label for="room-name" class="block text-sm font-medium text-gray-400 mb-2">Название комнаты</label>
+                            <input type="text" id="room-name" required placeholder="Например, Веселая вечеринка" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                        </div>
+                        <div>
+                            <label for="host-name" class="block text-sm font-medium text-gray-400 mb-2">Ваш ник</label>
+                            <input type="text" id="host-name" required placeholder="Например, Капитан" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                        </div>
+                         <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="teams-count" class="block text-sm font-medium text-gray-400 mb-2">Команд</label>
+                                <select id="teams-count" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                                    <option value="2">2 команды</option>
+                                    <option value="3">3 команды</option>
+                                    <option value="4">4 команды</option>
+                                    <option value="5">5 команд</option>
+                                </select>
+                            </div>
+                             <div>
+                                <label for="winning-score" class="block text-sm font-medium text-gray-400 mb-2">Очков для победы</label>
+                                <input type="number" id="winning-score" required value="20" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Время на раунд</label>
+                            <div id="timer-options" class="grid grid-cols-3 gap-3">
+                                <label class="timer-option-label cursor-pointer text-center bg-gray-700 rounded-lg p-3 border-2 border-transparent transition hover:border-indigo-500">
+                                    <input type="radio" name="timer" value="45" class="sr-only">
+                                    <span>45 сек</span>
+                                </label>
+                                <label class="timer-option-label cursor-pointer text-center bg-gray-700 rounded-lg p-3 border-2 border-indigo-500 transition hover:border-indigo-500">
+                                    <input type="radio" name="timer" value="60" class="sr-only" checked>
+                                    <span>60 сек</span>
+                                </label>
+                                <label class="timer-option-label cursor-pointer text-center bg-gray-700 rounded-lg p-3 border-2 border-transparent transition hover:border-indigo-500">
+                                    <input type="radio" name="timer" value="90" class="sr-only">
+                                    <span>90 сек</span>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow">
+                            Создать
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="join-form-container" class="hidden w-full">
+                 <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl space-y-6">
+                     <h2 class="text-3xl font-bold text-center text-white">Присоединиться</h2>
+                     <form id="join-by-link-form" class="space-y-4">
+                         <div>
+                            <label for="join-link-input" class="block text-sm font-medium text-gray-400 mb-2">Вставьте ссылку на комнату</label>
+                            <input type="text" id="join-link-input" required placeholder="https://..." class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow">
+                            Войти
+                        </button>
+                     </form>
+                 </div>
+            </div>
+        </div>
+        
+        <!-- === ЭКРАН ЛОББИ === -->
+        <div id="lobby-screen" class="w-full max-w-4xl hidden">
+             <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl">
+                <h2 class="text-2xl font-bold text-center">Комната: <span id="lobby-room-name" class="text-indigo-400">...</span></h2>
+                
+                <p class="text-center text-gray-400 mt-4">Пригласите друзей, скопировав эту ссылку!</p>
+                 <div id="invite-link-container" class="mt-2 bg-gray-900 p-4 rounded-lg flex items-center justify-between">
+                    <span id="invite-link" class="text-gray-400 overflow-x-auto whitespace-nowrap">Загрузка ссылки...</span>
+                    <button id="copy-link-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg ml-4 transition hover:bg-indigo-700 flex-shrink-0">Копировать</button>
+                </div>
+
+                <div class="mt-8">
+                    <h3 class="font-bold text-lg mb-4 text-center">Команды и игроки</h3>
+                    <div id="teams-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+                <button id="start-game-btn" class="mt-8 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Начать игру
+                </button>
+            </div>
+        </div>
+
+        <!-- === ИГРОВОЙ ЭКРАН === -->
+        <div id="game-screen" class="w-full max-w-lg hidden">
+            <div class="game-ui-container relative">
+                <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center">
+                    <div id="game-info" class="text-left">
+                        <p class="text-sm text-gray-400">Объясняет: <span id="current-player-name" class="font-bold text-white">...</span></p>
+                        <p class="text-sm text-gray-400">Команда: <span id="current-team-name" class="font-bold text-white">...</span></p>
+                    </div>
+                    <div id="game-scores" class="text-right"></div>
+                </div>
+                <div class="absolute top-20 left-1/2 -translate-x-1/2 w-full px-4">
+                     <div class="w-full bg-gray-700 rounded-full h-2.5">
+                        <div id="timer-bar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-200"></div>
+                    </div>
+                    <p id="timer-text" class="text-center font-mono text-xl mt-2">00:00</p>
+                </div>
+                <div id="word-card-container" class="h-64 flex items-center justify-center"></div>
+                 <div id="in-round-words-container" class="mt-4 text-center">
+                    <p class="text-sm text-gray-400">Угадано в этом раунде:</p>
+                    <div id="in-round-words-list" class="flex flex-wrap justify-center gap-2 mt-2"></div>
+                </div>
+                <div class="flex justify-center items-center gap-6 mt-4">
+                    <button id="skip-word-btn" class="game-btn bg-yellow-600 hover:bg-yellow-700">Пропустить</button>
+                    <button id="guess-word-btn" class="game-btn bg-green-600 hover:bg-green-700">Верно!</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === ЭКРАН РЕЗУЛЬТАТОВ РАУНДА === -->
+        <div id="round-summary-screen" class="w-full max-w-xl hidden">
+            <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl text-center relative">
+                <button id="close-summary-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+                <h2 class="text-3xl font-bold">Раунд завершен!</h2>
+                <div id="summary-scores" class="my-6 text-lg"></div>
+                <h3 class="font-bold text-xl mb-4">Результаты раунда</h3>
+                <div id="summary-words-list" class="max-h-40 overflow-y-auto bg-gray-700 rounded-lg p-4 text-left space-y-2">
+                </div>
+                <div id="ready-check-container" class="mt-6">
+                    <p class="text-lg">Следующий раунд: <span id="next-team-name" class="font-bold"></span></p>
+                    <div id="ready-players-list" class="text-gray-400 mt-2"></div>
+                    <button id="ready-btn" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition hidden">Я готов!</button>
+                </div>
+                <button id="next-round-btn" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Начать следующий раунд
+                </button>
+            </div>
+        </div>
+
+        <!-- === ЭКРАН КОНЦА ИГРЫ === -->
+        <div id="game-over-screen" class="w-full max-w-xl hidden text-center">
+            <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl">
+                <h2 class="text-4xl font-bold text-yellow-400">Игра окончена!</h2>
+                <p class="text-2xl mt-4">Победила команда</p>
+                <p id="winner-team-name" class="text-5xl font-black text-white my-4"></p>
+                <div id="final-scores" class="text-lg"></div>
+                <button id="play-again-btn" class="mt-8 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow">
+                    Играть снова
+                </button>
+            </div>
+        </div>
+        
+         <!-- === ЭКРАН ОЖИДАНИЯ / ОШИБКИ === -->
+        <div id="message-screen" class="w-full max-w-xl hidden text-center">
+            <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl">
+                 <h2 id="message-title" class="text-3xl font-bold">...</h2>
+                 <p id="message-text" class="text-gray-400 mt-4">...</p>
+                 <button id="message-back-btn" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition">
+                    Вернуться на главный экран
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- === МОДАЛЬНОЕ ОКНО ДЛЯ ВХОДА В КОМНАТУ === -->
+    <div id="join-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-sm space-y-4">
+            <h2 class="text-2xl font-bold text-center">Присоединиться к игре</h2>
+            <form id="join-form">
+                <label for="nickname-input" class="block text-sm font-medium text-gray-400 mb-2">Введите ваш ник</label>
+                <input type="text" id="nickname-input" required placeholder="Ваше имя" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                <button type="submit" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 shadow-lg btn-glow">
+                    Войти в комнату
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase и слова -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="words.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
