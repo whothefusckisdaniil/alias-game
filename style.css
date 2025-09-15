@@ -186,3 +186,70 @@ label:has(input[type="radio"]:checked) {
     background-color: #4338ca; /* indigo-700 */
 }
 
+/* --- СТИЛИ ДЛЯ СТАТИСТИКИ --- */
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #374151; /* gray-700 */
+}
+.stat-item:last-child {
+    border-bottom: none;
+}
+.stat-label {
+    font-size: 0.875rem;
+    color: #9ca3af; /* gray-400 */
+}
+.stat-value {
+    font-size: 1.125rem;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+/* --- СТИЛИ ДЛЯ АНИМАЦИИ СТРИКА --- */
+.streak-container {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    pointer-events: none;
+}
+.streak-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background-color: rgba(255, 159, 67, 0.9); /* Яркий оранжевый */
+    color: #111827; /* gray-900 */
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    box-shadow: 0 10px 25px rgba(255, 159, 67, 0.4);
+    animation: streak-in-out 4s cubic-bezier(0.68, -0.55, 0.27, 1.55) both;
+}
+.streak-fire {
+    font-size: 2.5rem;
+    animation: fire-flicker 1s infinite;
+}
+.streak-title {
+    font-weight: 900;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+.streak-subtitle {
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1;
+}
+
+@keyframes streak-in-out {
+    0% { transform: translateY(100px) scale(0.5); opacity: 0; }
+    15% { transform: translateY(0) scale(1); opacity: 1; }
+    85% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(100px) scale(0.5); opacity: 0; }
+}
+
+@keyframes fire-flicker {
+    0%, 100% { transform: scale(1) rotate(-2deg); }
+    50% { transform: scale(1.1) rotate(2deg); }
+}
+
