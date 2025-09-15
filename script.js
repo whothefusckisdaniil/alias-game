@@ -63,6 +63,11 @@ const readyCheckContainer = document.getElementById('ready-check-container');
 const nextTeamName = document.getElementById('next-team-name');
 const readyPlayersList = document.getElementById('ready-players-list');
 const timerOptions = document.getElementById('timer-options');
+const streakNotification = document.getElementById('streak-notification');
+const streakText = document.getElementById('streak-text');
+const streakComment = document.getElementById('streak-comment');
+const roundStatsContainer = document.getElementById('round-stats-container');
+const finalStatsContainer = document.getElementById('final-stats-container');
 
 // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
 let currentRoomId = null;
@@ -70,6 +75,7 @@ let roomUnsubscribe = null;
 let presenceUnsubscribe = null;
 let userPresenceRef = null;
 let timerInterval = null;
+let streakTimeout = null;
 let userId = localStorage.getItem('aliasUserId');
 if (!userId) {
     userId = db.ref().push().key;
@@ -195,6 +201,7 @@ function renderGame(roomData) {
         const existingCard = wordCardContainer.querySelector('.word-card');
         if (!existingCard || existingCard.dataset.word !== currentWord) {
              renderNewWordCard(currentWord);
+             db.ref(`rooms/${currentRoomId}/game/currentWordStartTime`).set(firebase.database.ServerValue.TIMESTAMP);
         }
     } else {
         renderHiddenWordCard(currentPlayer.nick);
@@ -203,6 +210,11 @@ function renderGame(roomData) {
     inRoundWordsList.innerHTML = (game.roundHistory || [])
         .filter(item => item.guessed)
         .map(item => `<span class="guessed-word-badge">${item.word}</span>`).join('');
+    
+    const currentStreak = game.streaks?.[game.currentPlayerId] || 0;
+    if (amIExplaining && currentStreak > 1) {
+        showStreakAnimation(currentStreak);
+    }
 
     guessWordBtn.disabled = !amIExplaining;
     skipWordBtn.disabled = !amIExplaining;
@@ -225,57 +237,131 @@ function renderHiddenWordCard(explainerNick) {
 }
 
 function renderRoundSummary(roomData) {
-    const { game, teams, hostId } = roomData;
+    const { game, teams, hostId, players } = roomData;
     summaryScores.innerHTML = Object.values(teams).map(t => `<p>${t.name}: <span class="font-bold">${t.score}</span></p>`).join('');
-    summaryWordsList.innerHTML = (game.roundHistory || []).map(item =>
+    
+    // STATS CALCULATION
+    const roundHistory = game.roundHistory || [];
+    let roundStats = { mvp: '–', bestTeam: '–', hardestWord: '–' };
+
+    if (roundHistory.length > 0) {
+        const explainedCounts = {};
+        const teamCounts = {};
+        const skippedWords = {};
+
+        roundHistory.forEach(item => {
+            const explainerId = item.explainerId;
+            explainedCounts[explainerId] = (explainedCounts[explainerId] || 0) + 1;
+            if (item.guessed) {
+                const teamId = Object.entries(teams).find(([tId, t]) => t.players && t.players[explainerId])[0];
+                teamCounts[teamId] = (teamCounts[teamId] || 0) + 1;
+            } else {
+                skippedWords[item.word] = (skippedWords[item.word] || 0) + 1;
+            }
+        });
+
+        const maxExplained = Math.max(0, ...Object.values(explainedCounts));
+        const mvpId = Object.keys(explainedCounts).find(id => explainedCounts[id] === maxExplained);
+        if (mvpId) {
+            const playerNick = Object.values(teams).flatMap(t => Object.entries(t.players || {})).find(([pId, p]) => pId === mvpId)?.[1].nick;
+            roundStats.mvp = `${playerNick} (${maxExplained} слов)`;
+        }
+
+        const maxTeamScore = Math.max(0, ...Object.values(teamCounts));
+        const bestTeamId = Object.keys(teamCounts).find(id => teamCounts[id] === maxTeamScore);
+        if (bestTeamId) roundStats.bestTeam = `${teams[bestTeamId].name} (+${maxTeamScore})`;
+
+        const maxSkipped = Math.max(0, ...Object.values(skippedWords));
+        const hardestWord = Object.keys(skippedWords).find(word => skippedWords[word] === maxSkipped);
+        if (hardestWord) roundStats.hardestWord = `"${hardestWord}" (x${maxSkipped})`;
+    }
+
+    roundStatsContainer.innerHTML = `
+        <h3 class="font-bold text-xl mb-4 text-center md:text-left">Статистика раунда</h3>
+        <div class="space-y-2">
+            <div class="stat-item"><span class="stat-label">⭐ MVP Раунда</span><span class="stat-value">${roundStats.mvp}</span></div>
+            <div class="stat-item"><span class="stat-label">🚀 Командный рывок</span><span class="stat-value">${roundStats.bestTeam}</span></div>
+            <div class="stat-item"><span class="stat-label">🤯 Крепкий орешек</span><span class="stat-value">${roundStats.hardestWord}</span></div>
+        </div>`;
+    
+    summaryWordsList.innerHTML = roundHistory.map(item =>
         `<div class="flex justify-between items-center ${item.guessed ? 'text-green-400' : 'text-yellow-400'}">
             <span>${item.word}</span>
             <span>${item.guessed ? '+1' : 'пропуск'}</span>
         </div>`
     ).join('');
 
-    const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.playerOrder.length;
-    const nextPlayerInfo = game.playerOrder[nextPlayerIndex];
-    const nextTeam = teams[nextPlayerInfo.teamId];
-    const nextTeamPlayers = nextTeam.players || {};
-
-    nextTeamName.textContent = nextTeam.name;
-
-    const readyPlayers = game.readyCheck ? Object.keys(game.readyCheck) : [];
-    
-    readyPlayersList.innerHTML = Object.entries(nextTeamPlayers).map(([pId, p]) => 
-        `<span>${p.nick} ${readyPlayers.includes(pId) ? '✅' : '...'}</span>`
-    ).join(', ');
-
-    const amIOnNextTeam = nextTeam.players && nextTeam.players[userId];
-    if (amIOnNextTeam && !readyPlayers.includes(userId)) {
-        readyBtn.classList.remove('hidden');
+    const winner = Object.values(teams).find(t => t.score >= (roomData.settings.winningScore || 20));
+    if (winner) {
+        readyCheckContainer.classList.add('hidden');
+        nextRoundBtn.textContent = 'Перейти к результатам';
+        nextRoundBtn.disabled = false;
+        nextRoundBtn.onclick = () => db.ref(`rooms/${currentRoomId}/status`).set('finished');
     } else {
-        readyBtn.classList.add('hidden');
-    }
+        readyCheckContainer.classList.remove('hidden');
+        nextRoundBtn.onclick = handleNextRound;
 
-    const allNextTeamPlayersReady = Object.keys(nextTeamPlayers).every(pId => readyPlayers.includes(pId));
-    
-    nextRoundBtn.style.display = 'block';
-    if (hostId !== userId) {
-        nextRoundBtn.disabled = true;
-        nextRoundBtn.textContent = 'Ожидание старта от хоста';
-    } else {
-        nextRoundBtn.disabled = !allNextTeamPlayersReady;
-        nextRoundBtn.textContent = allNextTeamPlayersReady ? 'Начать следующий раунд' : 'Ожидание готовности игроков';
+        const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.playerOrder.length;
+        const nextPlayerInfo = game.playerOrder[nextPlayerIndex];
+        const nextTeam = teams[nextPlayerInfo.teamId];
+        const nextTeamPlayers = nextTeam.players || {};
+
+        nextTeamName.textContent = nextTeam.name;
+        const readyPlayers = game.readyCheck ? Object.keys(game.readyCheck) : [];
+        readyPlayersList.innerHTML = Object.entries(nextTeamPlayers).map(([pId, p]) => `<span>${p.nick} ${readyPlayers.includes(pId) ? '✅' : '...'}</span>`).join(', ');
+        
+        const amIOnNextTeam = nextTeam.players && nextTeam.players[userId];
+        readyBtn.classList.toggle('hidden', !(amIOnNextTeam && !readyPlayers.includes(userId)));
+
+        const allNextTeamPlayersReady = Object.keys(nextTeamPlayers).every(pId => readyPlayers.includes(pId));
+        
+        nextRoundBtn.style.display = 'block';
+        if (hostId !== userId) {
+            nextRoundBtn.disabled = true;
+            nextRoundBtn.textContent = 'Ожидание старта от хоста';
+        } else {
+            nextRoundBtn.disabled = !allNextTeamPlayersReady;
+            nextRoundBtn.textContent = allNextTeamPlayersReady ? 'Начать следующий раунд' : 'Ожидание готовности игроков';
+        }
     }
 }
 
 function renderGameOver(roomData) {
     let winner = null;
     let maxScore = -1;
-    Object.values(roomData.teams).forEach(team => {
-        if (team.score > maxScore) { maxScore = team.score; winner = team; }
-    });
+    Object.values(roomData.teams).forEach(team => { if (team.score > maxScore) { maxScore = team.score; winner = team; } });
     winnerTeamName.textContent = winner ? winner.name : 'Никто';
     finalScores.innerHTML = Object.values(roomData.teams).map(t => `<p>${t.name}: <span class="font-bold">${t.score}</span></p>`).join('');
     playAgainBtn.style.display = roomData.hostId === userId ? 'block' : 'none';
+
+    // ФИНАЛЬНАЯ СТАТИСТИКА
+    const fullHistory = roomData.game.fullHistory || [];
+    let finalStats = { mvp: '–', clutchPlayer: '–', wordMaster: '–' };
+
+    if (fullHistory.length > 0) {
+        const explainedCounts = {};
+        fullHistory.forEach(item => {
+            if (item.guessed) {
+                explainedCounts[item.explainerId] = (explainedCounts[item.explainerId] || 0) + 1;
+            }
+        });
+        
+        const maxExplained = Math.max(0, ...Object.values(explainedCounts));
+        const mvpId = Object.keys(explainedCounts).find(id => explainedCounts[id] === maxExplained);
+        if (mvpId) {
+            const playerNick = Object.values(roomData.teams).flatMap(t => Object.entries(t.players || {})).find(([pId, p]) => pId === mvpId)?.[1].nick;
+            finalStats.mvp = `${playerNick} (${maxExplained} слов)`;
+        }
+    }
+    
+    finalStatsContainer.innerHTML = `
+        <h3 class="font-bold text-xl mb-4 text-center">Итоги игры</h3>
+        <div class="space-y-2">
+            <div class="stat-item"><span class="stat-label">🏆 MVP Игры (больше всего объяснил)</span><span class="stat-value">${finalStats.mvp}</span></div>
+            <!-- Add more final stats here if needed -->
+        </div>`;
 }
+
 
 // --- ИГРОВАЯ ЛОГИКА И УПРАВЛЕНИЕ КОМНАТОЙ ---
 async function handleCreateRoom(event) {
@@ -406,32 +492,62 @@ function handleStartGame() {
              alert("В каждой команде должно быть минимум 2 игрока для старта.");
              return;
         }
+
+        // УНИКАЛЬНЫЕ СЛОВА ЛОГИКА
+        const wordsNeeded = roomData.settings.winningScore * teamIds.length * 1.5; 
+        const gameWords = shuffleArray([...WORDS_DATABASE]).slice(0, wordsNeeded);
+
         roomRef.update({
             'status': 'playing',
             'game': {
-                wordQueue: shuffleArray([...WORDS_DATABASE]),
+                wordQueue: gameWords,
+                fullHistory: [],
                 currentWordIndex: 0,
                 playerOrder: playerOrder,
                 currentPlayerIndex: 0,
                 roundHistory: [],
+                streaks: {},
                 currentTeamId: playerOrder[0].teamId,
                 currentPlayerId: playerOrder[0].playerId,
                 roundStartTime: firebase.database.ServerValue.TIMESTAMP,
+                currentWordStartTime: firebase.database.ServerValue.TIMESTAMP,
             }
         });
     });
 }
 function handleWordAction(isGuessed) {
     const roomRef = db.ref(`rooms/${currentRoomId}`);
+    const actionTime = firebase.database.ServerValue.TIMESTAMP;
+    
     roomRef.transaction(room => {
         if (room && room.game) {
             const word = room.game.wordQueue[room.game.currentWordIndex];
             if (!room.game.roundHistory) room.game.roundHistory = [];
-            room.game.roundHistory.push({ word: word, guessed: isGuessed });
+            
+            const timeTaken = Date.now() - (room.game.currentWordStartTime || Date.now());
+
+            room.game.roundHistory.push({ 
+                word: word, 
+                guessed: isGuessed,
+                explainerId: room.game.currentPlayerId,
+                timeTaken: isGuessed ? timeTaken : null,
+            });
+
             if (isGuessed) {
                 if(!room.teams[room.game.currentTeamId].score) room.teams[room.game.currentTeamId].score = 0;
                 room.teams[room.game.currentTeamId].score++;
+                
+                // Серия логика
+                const explainerId = room.game.currentPlayerId;
+                if (!room.game.streaks) room.game.streaks = {};
+                room.game.streaks[explainerId] = (room.game.streaks[explainerId] || 0) + 1;
+
+            } else {
+                // Сбросить серию при пропуске
+                const explainerId = room.game.currentPlayerId;
+                if (room.game.streaks) room.game.streaks[explainerId] = 0;
             }
+
             room.game.currentWordIndex++;
         }
         return room;
@@ -441,9 +557,15 @@ function handleWordAction(isGuessed) {
 function handleEndRound() {
     db.ref(`rooms/${currentRoomId}`).transaction(room => {
         if (room) {
-            room.status = 'round-over';
-            if (room.game) {
-                room.game.readyCheck = {};
+            if (!room.game.fullHistory) room.game.fullHistory = [];
+            room.game.fullHistory.push(...(room.game.roundHistory || []));
+            
+            const winner = Object.values(room.teams).find(t => t.score >= (room.settings.winningScore || 20));
+            if (winner) {
+                room.status = 'finished';
+            } else {
+                room.status = 'round-over';
+                if (room.game) room.game.readyCheck = {};
             }
         }
         return room;
@@ -468,6 +590,7 @@ function handleNextRound() {
             room.game.roundHistory = [];
             room.game.readyCheck = {};
             room.game.roundStartTime = firebase.database.ServerValue.TIMESTAMP;
+            room.game.currentWordStartTime = firebase.database.ServerValue.TIMESTAMP;
         }
         return room;
     });
@@ -642,6 +765,18 @@ function router() {
         try { presencesRef.off('value', presenceListener); } catch (e) { console.warn('Ошибка при off() присутствия:', e); }
     }
 }
+
+function showStreakAnimation(count) {
+    if (streakTimeout) clearTimeout(streakTimeout);
+    streakText.textContent = `СТРИК x${count}!`;
+    const comments = ["МОЩНО!", "ВАУ!", "ТАК ДЕРЖАТЬ!", "ОТЛИЧНО!", "НЕВЕРОЯТНО!"];
+    streakComment.textContent = comments[Math.floor(Math.random() * comments.length)];
+    streakNotification.classList.remove('hidden');
+    streakTimeout = setTimeout(() => {
+        streakNotification.classList.add('hidden');
+    }, 4000);
+}
+
 
 // --- НАЗНАЧЕНИЕ ОБРАБОТЧИКОВ ---
 document.addEventListener('DOMContentLoaded', () => {
