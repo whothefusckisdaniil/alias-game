@@ -237,10 +237,9 @@ function renderHiddenWordCard(explainerNick) {
 }
 
 function renderRoundSummary(roomData) {
-    const { game, teams, hostId, players } = roomData;
+    const { game, teams, hostId } = roomData;
     summaryScores.innerHTML = Object.values(teams).map(t => `<p>${t.name}: <span class="font-bold">${t.score}</span></p>`).join('');
     
-    // STATS CALCULATION
     const roundHistory = game.roundHistory || [];
     let roundStats = { mvp: '–', bestTeam: '–', hardestWord: '–' };
 
@@ -299,7 +298,7 @@ function renderRoundSummary(roomData) {
         nextRoundBtn.onclick = () => db.ref(`rooms/${currentRoomId}/status`).set('finished');
     } else {
         readyCheckContainer.classList.remove('hidden');
-        nextRoundBtn.onclick = handleNextRound;
+        nextRoundBtn.onclick = handleNextRound; 
 
         const nextPlayerIndex = (game.currentPlayerIndex + 1) % game.playerOrder.length;
         const nextPlayerInfo = game.playerOrder[nextPlayerIndex];
@@ -334,9 +333,8 @@ function renderGameOver(roomData) {
     finalScores.innerHTML = Object.values(roomData.teams).map(t => `<p>${t.name}: <span class="font-bold">${t.score}</span></p>`).join('');
     playAgainBtn.style.display = roomData.hostId === userId ? 'block' : 'none';
 
-    // ФИНАЛЬНАЯ СТАТИСТИКА
     const fullHistory = roomData.game.fullHistory || [];
-    let finalStats = { mvp: '–', clutchPlayer: '–', wordMaster: '–' };
+    let finalStats = { mvp: '–' };
 
     if (fullHistory.length > 0) {
         const explainedCounts = {};
@@ -358,7 +356,6 @@ function renderGameOver(roomData) {
         <h3 class="font-bold text-xl mb-4 text-center">Итоги игры</h3>
         <div class="space-y-2">
             <div class="stat-item"><span class="stat-label">🏆 MVP Игры (больше всего объяснил)</span><span class="stat-value">${finalStats.mvp}</span></div>
-            <!-- Add more final stats here if needed -->
         </div>`;
 }
 
@@ -493,15 +490,14 @@ function handleStartGame() {
              return;
         }
 
-        // УНИКАЛЬНЫЕ СЛОВА ЛОГИКА
-        const wordsNeeded = roomData.settings.winningScore * teamIds.length * 1.5; 
+        const wordsNeeded = roomData.settings.winningScore * teamIds.length * 1.5;
         const gameWords = shuffleArray([...WORDS_DATABASE]).slice(0, wordsNeeded);
 
         roomRef.update({
             'status': 'playing',
             'game': {
                 wordQueue: gameWords,
-                fullHistory: [],
+                fullHistory: [], 
                 currentWordIndex: 0,
                 playerOrder: playerOrder,
                 currentPlayerIndex: 0,
@@ -517,7 +513,6 @@ function handleStartGame() {
 }
 function handleWordAction(isGuessed) {
     const roomRef = db.ref(`rooms/${currentRoomId}`);
-    const actionTime = firebase.database.ServerValue.TIMESTAMP;
     
     roomRef.transaction(room => {
         if (room && room.game) {
@@ -537,13 +532,11 @@ function handleWordAction(isGuessed) {
                 if(!room.teams[room.game.currentTeamId].score) room.teams[room.game.currentTeamId].score = 0;
                 room.teams[room.game.currentTeamId].score++;
                 
-                // Серия логика
                 const explainerId = room.game.currentPlayerId;
                 if (!room.game.streaks) room.game.streaks = {};
                 room.game.streaks[explainerId] = (room.game.streaks[explainerId] || 0) + 1;
 
             } else {
-                // Сбросить серию при пропуске
                 const explainerId = room.game.currentPlayerId;
                 if (room.game.streaks) room.game.streaks[explainerId] = 0;
             }
@@ -589,6 +582,7 @@ function handleNextRound() {
             room.game.currentPlayerId = nextPlayer.playerId;
             room.game.roundHistory = [];
             room.game.readyCheck = {};
+            room.game.streaks = {};
             room.game.roundStartTime = firebase.database.ServerValue.TIMESTAMP;
             room.game.currentWordStartTime = firebase.database.ServerValue.TIMESTAMP;
         }
@@ -612,11 +606,11 @@ function handlePlayAgain() {
 // --- ГЛАВНЫЙ РОУТЕР И СЛУШАТЕЛЬ ---
 function router() {
     if (roomUnsubscribe) {
-        try { roomUnsubscribe(); } catch (e) { console.warn('Ошибка при отписке комнаты:', e); }
+        try { roomUnsubscribe(); } catch (e) {}
         roomUnsubscribe = null;
     }
      if (presenceUnsubscribe) {
-        try { presenceUnsubscribe(); } catch (e) { console.warn('Ошибка при отписке присутствия:', e); }
+        try { presenceUnsubscribe(); } catch (e) {}
         presenceUnsubscribe = null;
     }
     if (timerInterval) {
@@ -666,27 +660,29 @@ function router() {
                 showScreen('game');
                 renderGame(roomData);
                 if (timerInterval) clearInterval(timerInterval);
+                
                 const roundDuration = roomData.settings.timer * 1000;
+                const roundStartTime = roomData.game.roundStartTime;
+
                 db.ref(`.info/serverTimeOffset`).once('value', (offsetSnap) => {
                     const offset = offsetSnap.val() || 0;
+                    
                     timerInterval = setInterval(() => {
-                        db.ref(`rooms/${currentRoomId}`).once('value', (currentSnapshot) => {
-                            const currentRoomData = currentSnapshot.val();
-                            if (!currentRoomData || !currentRoomData.game || !currentRoomData.game.roundStartTime) {
-                                clearInterval(timerInterval);
-                                return;
-                            }
-                            const timePassed = Date.now() + offset - currentRoomData.game.roundStartTime;
-                            const timeLeft = Math.max(0, roundDuration - timePassed);
-                            timerBar.style.width = `${(timeLeft / roundDuration) * 100}%`;
-                            timerText.textContent = new Date(timeLeft).toISOString().substr(14, 5);
-                            if (timeLeft <= 0) {
-                                clearInterval(timerInterval);
-                                if (currentRoomData.game.currentPlayerId === userId) {
+                        const timePassed = Date.now() + offset - roundStartTime;
+                        const timeLeft = Math.max(0, roundDuration - timePassed);
+                        
+                        timerBar.style.width = `${(timeLeft / roundDuration) * 100}%`;
+                        timerText.textContent = new Date(timeLeft).toISOString().substr(14, 5);
+
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                            timerInterval = null;
+                            db.ref(`rooms/${currentRoomId}/game/currentPlayerId`).once('value', (explainerIdSnap) => {
+                                if (explainerIdSnap.val() === userId) {
                                     handleEndRound();
                                 }
-                            }
-                        });
+                            });
+                        }
                     }, 200);
                 });
                 break;
@@ -714,7 +710,6 @@ function router() {
                     if (team.players) {
                         Object.keys(team.players).forEach(playerId => {
                             if (!presences[playerId]) {
-                                console.log(`Игрок ${team.players[playerId].nick} отсутствует, удаляем...`);
                                 updates[`/teams/${teamId}/players/${playerId}`] = null;
                                 playerRemoved = true;
                             }
@@ -726,11 +721,8 @@ function router() {
             if (!presences[roomData.hostId]) {
                 const presentPlayers = Object.keys(presences);
                 if (presentPlayers.length > 0) {
-                    const newHostId = presentPlayers[0];
-                    console.log(`Хост вышел, назначаем нового: ${newHostId}`);
-                    updates[`/hostId`] = newHostId;
+                    updates[`/hostId`] = presentPlayers[0];
                 } else {
-                     console.log("Все игроки вышли, удаляем комнату.");
                      roomRef.remove();
                      return;
                 }
@@ -744,7 +736,6 @@ function router() {
                             if(!updatedRoomData) return;
                             const isGameStillValid = Object.values(updatedRoomData.teams).every(team => (team.players ? Object.keys(team.players).length : 0) >= 2);
                             if (!isGameStillValid) {
-                                console.log("Недостаточно игроков, игра остановлена.");
                                 roomRef.child('status').set('lobby');
                                 showMessageScreen("Игра остановлена", "Один из игроков вышел, и в команде стало меньше двух человек. Возвращаемся в лобби.");
                             }
@@ -759,10 +750,10 @@ function router() {
     presencesRef.on('value', presenceListener, (error) => console.error("Ошибка присутствия:", error));
 
     roomUnsubscribe = () => {
-        try { roomRef.off('value', mainListener); } catch (e) { console.warn('Ошибка при off() комнаты:', e); }
+        try { roomRef.off('value', mainListener); } catch (e) {}
     };
     presenceUnsubscribe = () => {
-        try { presencesRef.off('value', presenceListener); } catch (e) { console.warn('Ошибка при off() присутствия:', e); }
+        try { presencesRef.off('value', presenceListener); } catch (e) {}
     }
 }
 
